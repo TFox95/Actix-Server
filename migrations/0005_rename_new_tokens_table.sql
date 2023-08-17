@@ -1,0 +1,1 @@
+ALTER TABLE new_tokens RENAME TO tokens;

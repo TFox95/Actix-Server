@@ -1,0 +1,204 @@
+use std::{usize, io};
+use std::env::args;
+use std::collections::HashMap;
+use actix_web::{App, HttpServer, main, get, Responder, HttpResponse};
+use json;
+
+//fn get_nth_arg(n: usize) -> String {
+//    return args().nth(n).unwrap()
+//}
+
+//struct MyClass {
+//    fore_name: String,
+//    sur_name: String,
+//    age: i32,
+//    sex: String
+//}
+
+//trait MyClassTrait {
+//    fn get_name(&self) -> String;
+//
+//    fn get_age(&self) -> i32;
+//
+//    fn get_sex(&self) -> String;
+//
+//    fn set_details(&self) -> String;
+//}
+
+//impl MyClassTrait for MyClass {
+//   fn get_name(&self) -> String {
+//        format!("{} {}", self.fore_name, self.sur_name)
+//    }
+//
+//    fn get_age(&self) -> i32 {
+//        self.age
+//    }
+//
+//    fn get_sex(&self) -> String {
+//        format!("{}", self.sex)
+//    }
+//    fn set_details(&self) -> String {
+//        format!("My name is {} and I am {} years old and my sex is {}", 
+//                self.get_name(), self.get_age(), self.get_sex())
+//    }
+//}
+
+
+
+//fn main_app() {
+
+//    let _thomas = MyClass {
+//        fore_name: get_nth_arg(1),
+//        sur_name: get_nth_arg(2),
+//        age: get_nth_arg(3).parse().expect("Age must be a valid integer."),
+//        sex: get_nth_arg(4)
+//    };
+//    let mut input = String::new(); 
+//    println!("{:#?}", _thomas.set_details());
+//    let _io = io::stdin().read_line(&mut input);
+//    let name = input.trim();
+//    println!("Hello {} what's my name? {}", _thomas.get_name(), name);
+//}
+
+
+#[derive(Debug)]
+pub enum AppErrorType {
+    DBError,
+    NotFoundError
+}
+
+#[derive(Debug)]
+pub struct AppError {
+    pub message: Option<String>,
+    pub cause: Option<String>,
+    pub error_type: AppErrorType
+}
+
+impl AppError {
+    fn message(&self) -> String {
+        match &*Self {
+           AppError{
+                message: Some(message: &String),
+                cause: _,
+                error_type: _ } => message.clone(),
+            AppError{
+                message: None,
+                cause: _,
+                error_type: AppErrorType::NotFoundError } => "The requested item was not found".to_string(),
+                _ => "An unexpected error has occured".to_string()
+        }
+    }
+}
+
+impl Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Serialize)]
+pub struct AppErrorResponse {
+    pub error: String
+}
+
+impl ResponseError for AppError {
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        match self.error_type {
+            AppErrorType::DBError => StatusCode::INTERNAL_SERVER_ERROR,
+            AppErrorType::NotFoundError => StatusCode::NOT_FOUND,
+        }
+    }
+
+    fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+        
+    }
+}
+
+
+Error Handling Below!!!!!
+
+
+
+//Creating an Enum to Differentiate different error types
+//so we can execute different actions, such as different 
+//status_codes
+#[derive(Debug)]
+pub enum AppErrorType{
+    DbError,
+    NotFoundError,
+    ConflictError
+}
+
+//Initiating Custom Error Handler
+#[derive(Debug)]
+pub struct AppError {
+    //This attribute will be returned to the user.
+    pub message: Option<String>,
+    pub cause: Option<String>,
+    pub error_type: AppErrorType
+}
+
+impl AppError {
+    fn message(&self) -> String {
+        match &*self {
+            AppError{
+                message: Some(message), 
+                cause: _, 
+                error_type: _ 
+            } => message.clone(),
+
+            AppError{
+                message: None, 
+                cause: _, 
+                error_type: AppErrorType::NotFoundError
+            } => "The item was not found.".to_string(),
+
+            AppError{
+                message:None,
+                cause: _,
+                error_type: AppErrorType::DbError
+            } => "There was an Database Error".to_string(),
+
+            AppError{
+                message:None,
+                cause: _,
+                error_type: AppErrorType::ConflictError
+            } => "There was a conflict with the Data".to_string(),
+
+            _ => "An unexspected Error has occured".to_string()
+        }
+    }
+}
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+
+#[derive(serde::Serialize)]
+pub struct AppErrorResponse {
+    pub error_message: String
+}
+
+impl ResponseError for AppError {
+    fn status_code(&self) -> actix_web::http::StatusCode {
+        match self.error_type {
+            AppErrorType::DbError => StatusCode::INTERNAL_SERVER_ERROR,
+            AppErrorType::NotFoundError => StatusCode::NOT_FOUND,
+            AppErrorType::ConflictError => StatusCode::CONFLICT,
+        }
+    }
+
+    fn error_response(&self) -> actix_web::HttpResponse<actix_web::body::BoxBody> {
+        let status_string= self.status_code().to_string();
+        let detail = json::object! {
+                                "detail" => json::object! {
+                                "status" => status_string,
+                                "message" => self.message()
+                                }        
+                            };
+        HttpResponse::build(self.status_code()).body(detail.dump())
+    }
+}
