@@ -8,7 +8,9 @@ use std::result::Result;
 
 use super::{
     crud::UserCRUD,
-    middleware::{check_auth_header,
+    middleware::{
+        check_auth_header,
+        check_currently_active,
         check_auth_cookies, 
         get_db_pool, 
         get_user
@@ -55,7 +57,7 @@ async fn login(
     request: webJson<UserLoginSchema>,
     req: HttpRequest,
 ) -> Result<impl Responder, Box<dyn Error>> {
-    check_auth_header(req, "Authorization").await?;
+    check_currently_active(req, "Authorization").await?;
 
     let grab_user = get_user(request, SQLITE_TUPLE).await?;
     let user = UserTokenSchema {

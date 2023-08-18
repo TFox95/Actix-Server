@@ -35,16 +35,6 @@ pub async fn check_auth_header(
     request: HttpRequest,
     name: &str,
 ) -> Result<AccessTokenSchema, actix_web::Error> {
-    
-    if let Some(_) = request.headers().get(name) {
-        // Return an "already logged in" response
-        let jsonable = json::object! {
-            "detail" => json::object! {
-                "message" => "User is already logged in."
-            }
-        };
-        return Err(actix_web::error::ErrorBadRequest(jsonable.dump()));
-    }
 
         // Extract the "Authorization" header value
         let auth_header = request
@@ -129,4 +119,18 @@ pub async fn check_auth_cookies(request: HttpRequest, name: &str) -> Result<Refr
             }
         };
         return Ok(decoded_it) 
+}
+
+pub async fn check_currently_active(request: HttpRequest, name: &str) -> Result<(), actix_web::Error> {
+    
+    if let Some(_) = request.headers().get(name) {
+        // Return an "already logged in" response
+        let jsonable = json::object! {
+            "detail" => json::object! {
+                "message" => "User is already logged in."
+            }
+        };
+        return Err(actix_web::error::ErrorBadRequest(jsonable.dump()));
+    }
+    return Ok(())
 }
