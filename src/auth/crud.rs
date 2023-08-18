@@ -55,7 +55,7 @@ impl UserCRUD {
         sql_pool: &Pool<Sqlite>,
         user_pk: i32,
     ) -> Result<UserBaseSchema, Box<dyn stdError>> {
-        let sql = "SELECT * FROM users WHERE username = $1";
+        let sql = "SELECT * FROM users WHERE pk = $1";
         let query = query(sql).bind(&user_pk).fetch_one(sql_pool).await?;
 
         let decoded = UserBaseSchema::new(
