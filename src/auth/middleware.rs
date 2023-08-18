@@ -83,8 +83,7 @@ pub async fn check_auth_header(
                 return Err(actix_web::error::ErrorUnauthorized(jsonable.dump()));
             }
         };
-        Ok(decoded_it)
-    
+        Ok(decoded_it) 
 }
 
 pub async fn check_auth_cookies(request: HttpRequest, name: &str) -> Result<RefreshTokenSchema, actix_web::Error> {

@@ -144,6 +144,26 @@ async fn token_refresh(req: HttpRequest) -> Result<impl Responder, Box<dyn Error
 
 }
 
+
+#[get("/get_user")]
+async fn retrieve_user(request: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
+
+    let handle_token = check_auth_header(request, "Authorization").await?;
+    let handle_user = UserCRUD.retrieve_user_by_pk(&get_db_pool(SQLITE_TUPLE).await?, handle_token.pk).await?;
+
+    let jsonable = json::object! {
+        "data" => json::object! {
+            "pk" => handle_user.pk,
+            "username" => handle_user.username,
+            "email" => handle_user.email,
+            "password" => handle_user.password
+        }
+    };
+
+    return Ok(Response::Ok().body(jsonable.dump()));
+}
+
+
 pub fn config(cfg: &mut ServiceConfig) {
     cfg.service(
         scope("auth")
