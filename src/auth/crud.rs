@@ -55,7 +55,7 @@ impl UserCRUD {
         sql_pool: &Pool<Sqlite>,
         user_pk: i32,
     ) -> Result<UserBaseSchema, Box<dyn stdError>> {
-        let sql = "SELECT * FROM users WHERE pk = $1";
+        let sql = "SELECT * FROM users WHERE username = $1";
         let query = query(sql).bind(&user_pk).fetch_one(sql_pool).await?;
 
         let decoded = UserBaseSchema::new(
@@ -263,8 +263,10 @@ impl AccessTokenSchema {
             exp: expiration.timestamp() as usize,
             iat: issued_at as usize,
             iss: issuer,
-            username: user.username,
-            pk: user.pk,
+            data: UserTokenSchema { 
+                username: user.username, 
+                pk: user.pk 
+            }
         };
 
         let jwt_secret_key = var("jwt_secret_key").unwrap().as_bytes().to_owned(); //unwraping jwt secret from .env file and converting it to bytes.
@@ -287,12 +289,6 @@ impl AccessTokenSchema {
             &Validation::default(),
         )?;
 
-        return Ok(AccessTokenSchema {
-            exp: decoded.claims.exp,
-            iat: decoded.claims.iat,
-            iss: decoded.claims.iss,
-            username: decoded.claims.username,
-            pk: decoded.claims.pk,
-        });
+        return Ok(decoded.claims)
     }
 }
