@@ -3,6 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use sqlx::FromRow;
 
+use jsonwebtoken::{encode, EncodingKey, Header, decode, DecodingKey, Validation};
+
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserCreateSchema {
     pub email: String,
@@ -35,8 +38,7 @@ pub struct AccessTokenSchema {
     pub exp: usize,
     pub iat: usize,
     pub iss: String,
-    pub username: String,
-    pub pk: i32,
+    pub data: UserTokenSchema
 }
 
 #[derive(Debug, Deserialize, Serialize, FromRow)]
@@ -50,7 +52,7 @@ pub struct RefreshTokenSchema {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserTokenSchema {
     pub username: String,
-    pub pk: i32,
+    pub pk: i32
 }
 
 #[derive(Debug, Deserialize, Serialize)]
