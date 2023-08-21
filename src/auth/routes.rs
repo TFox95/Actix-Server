@@ -149,7 +149,7 @@ async fn token_refresh(req: HttpRequest) -> Result<impl Responder, Box<dyn Error
 async fn retrieve_user(request: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
 
     let handle_token = check_auth_header(request, "Authorization").await?;
-    let handle_user = UserCRUD.retrieve_user_by_username_or_email(&get_db_pool(SQLITE_TUPLE).await?, handle_token.username).await?;
+    let handle_user = UserCRUD.retrieve_user_by_username_or_email(&get_db_pool(SQLITE_TUPLE).await?, handle_token.data.username).await?;
 
     let jsonable = json::object! {
         "data" => json::object! {
