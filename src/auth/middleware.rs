@@ -74,6 +74,7 @@ pub async fn check_auth_header(
         let decoded_it = match AccessTokenSchema::decode_access_token(token).await {
             Ok(result) => result,
             Err(err) => {
+                println!("{:#?}", err);
                 let jsonable = json::object! {
                     "detail" => json::object! {
                         "message" => err.to_string()
