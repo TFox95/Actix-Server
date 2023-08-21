@@ -202,3 +202,37 @@ impl ResponseError for AppError {
         HttpResponse::build(self.status_code()).body(detail.dump())
     }
 }
+
+
+fn main_huh() -> () {
+    let secret: &str = "MYSuperSecret";
+    let encoded_secret = EncodingKey::from_secret(&secret.as_bytes().as_ref());
+    let header = Header::default();
+    let claims = Person{
+        age: 43,
+        iat: 487452148,
+        exp: 78461548454,
+        name: Here { first_name: "Thomas".to_string(), last_name: "Fox".to_string() }
+    };
+    let jwt = encode(&header, &claims, &encoded_secret).ok().unwrap();
+    println!("{:#?}", jwt.to_string());
+    let decoded_secret = DecodingKey::from_secret(&secret.as_bytes().as_ref());
+    let validation = Validation::default();
+    let decoded = decode::<Person>(&jwt.to_string(), &decoded_secret, &validation).unwrap();
+    println!("{:#?}", decoded.claims);
+    return ()
+    
+}
+
+#[derive(Debug,Deserialize, Serialize)]
+pub struct Here {
+    pub first_name:String,
+    pub last_name:String
+}
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Person {
+    pub age: i16,
+    pub exp: i64,
+    pub iat: i32,
+    pub name: Here
+}
