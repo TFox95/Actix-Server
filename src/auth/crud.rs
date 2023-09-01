@@ -10,61 +10,43 @@ use sqlx::{query, Pool, Row, Sqlite};
 
 use super::schemas::{
     AccessTokenSchema, RefreshTokenSchema, TokenEncoded, UserBaseSchema, UserCreateSchema,
-    UserOutSchema, UserTokenSchema, UserTraits,
+    UserOutSchema, UserTokenSchema, UserTraits, UserIdentifier,
 };
 
 pub struct UserCRUD;
 impl UserCRUD {
-    pub async fn retrieve_user_by_username_or_email(
+
+    pub async fn retrieve_user(
         &self,
         sql_pool: &Pool<Sqlite>,
-        username_or_email: String,
-    ) -> Result<UserBaseSchema, Box<dyn stdError>> {
-        if username_or_email.to_string().contains("@") {
-            let sql = "SELECT * FROM users WHERE email = $1";
-            let query = query(sql)
-                .bind(username_or_email)
-                .fetch_one(sql_pool)
-                .await?;
-            let decoded = UserBaseSchema::new(
-                query.get("pk"),
-                query.get("email"),
-                query.get("username"),
-                query.get("password"),
-            );
-            return Ok(decoded);
-        } else {
-            let sql = "SELECT * FROM users WHERE username = $1";
-            let query = query(sql)
-                .bind(&username_or_email)
-                .fetch_one(sql_pool)
-                .await?;
+        identifier: impl Into<UserIdentifier>
+        ) -> Result<UserBaseSchema, Box<dyn stdError>> {
+        
+        let identifier = identifier.into();
 
-            let decoded = UserBaseSchema::new(
-                query.get("pk"),
-                query.get("email"),
-                query.get("username"),
-                query.get("password"),
-            );
-            return Ok(decoded);
-        }
-    }
-
-    pub async fn retrieve_user_by_pk(
-        &self,
-        sql_pool: &Pool<Sqlite>,
-        user_pk: i32,
-    ) -> Result<UserBaseSchema, Box<dyn stdError>> {
-        let sql = "SELECT * FROM users WHERE username = $1";
-        let query = query(sql).bind(&user_pk).fetch_one(sql_pool).await?;
-
+        let query_statement = match identifier {
+            UserIdentifier::Email(email) => {
+                let sql =  "SELECT * FROM users WHERE email = $1";
+                query(sql).bind(email).fetch_one(sql_pool).await?
+            },
+            UserIdentifier::Username(username) => {
+                let sql =  "SELECT * FROM users WHERE username = $1";
+                query(sql).bind(username).fetch_one(sql_pool).await?
+            },
+            UserIdentifier::PrimaryKey(pk) =>  {
+                let sql = "SELECT * FROM users WHERE pk = $1";
+                query(sql).bind(pk).fetch_one(sql_pool).await?
+            }
+        };
+        
         let decoded = UserBaseSchema::new(
-            query.get("pk"),
-            query.get("email"),
-            query.get("username"),
-            query.get("password"),
-        );
-        return Ok(decoded);
+            query_statement.get("pk"), 
+            query_statement.get("email"), 
+            query_statement.get("username"), 
+            query_statement.get("password")
+            );
+        
+        return Ok(decoded)
     }
 
     pub async fn build_user(
@@ -89,51 +71,119 @@ impl UserCRUD {
         });
     }
 
-    pub async fn update_user_password(
+    pub async fn update_user_parameter(
         &self,
         sql_pool: &Pool<Sqlite>,
-        primary_key: i32,
-        password: String,
+        identifier: impl Into<UserIdentifier>,
+        parameter_to_update: String,
+        updated_value: String,
     ) -> Result<String, Box<dyn stdError>> {
-        let sql = "UPDATE users SET password = $1 WHERE pk = $2";
 
-        query(sql)
-            .bind(&password)
-            .bind(&primary_key)
-            .execute(sql_pool)
-            .await?;
+        let updated_value = if parameter_to_update.to_lowercase() == String::from("password") {
+            AuthHandler.get_password_hash(&updated_value)
+        } else {
+            updated_value
+        };
 
-        return Ok(String::from("The user's password has been updated"));
-    }
-
-    pub async fn update_user_username(
-        &self,
-        sql_pool: &Pool<Sqlite>,
-        username: String,
-        primary_key: i32,
-    ) -> Result<String, Box<dyn stdError>> {
-        let sql = "UPDATE users SET username = $1 WHERE pk = $2";
-
-        query(sql)
-            .bind(&username)
-            .bind(&primary_key)
-            .execute(sql_pool)
-            .await?;
-
-        return Ok(format!(
-            "User's username was successfully updated to {}",
-            username
-        ));
+        let identifier = identifier.into();
+        let user_pass = match &identifier {
+            UserIdentifier::Username(username) => {
+                let sql = "SELECT $1 FROM users WHERE username = $2";
+                query(sql).bind(&parameter_to_update.to_lowercase()).bind(username).fetch_one(sql_pool).await?
+            },
+            UserIdentifier::Email(email) => {
+                let sql = "SELECT $1 FROM users WHERE email = $2";
+                query(sql).bind(&parameter_to_update.to_lowercase()).bind(email).fetch_one(sql_pool).await?
+            },
+            UserIdentifier::PrimaryKey(pk) => {
+                let sql = "SELECT $1 FROM users WHERE pk = $2";
+                query(sql).bind(&parameter_to_update.to_lowercase()).bind(pk).fetch_one(sql_pool).await?
+            }
+        };
+        
+        let current_value: String = user_pass.get(parameter_to_update.clone().to_lowercase().as_str());
+        if updated_value == current_value {
+            let jsonable = json::object! {
+                "detail" => json::object! {
+                    "status_code" => 409,
+                    "message" => format!("Unable to update the {}. The value provided for the new {} does not meet the length, complexity, or history requirements of the domain", parameter_to_update, parameter_to_update)
+                }
+            };
+            return Err(Box::new(actix_web::error::ErrorBadRequest(jsonable.dump())))
+        } else {
+                    
+            match identifier {
+                UserIdentifier::Username(username) => {
+                    let sql = "UPDATE users SET $1 = $2 WHERE username = $3";
+                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(&username).fetch_one(sql_pool).await {
+                       Ok(_) => return Ok(String::from("The user's password has been successfully updated.")),
+                       Err(err) => {
+                            let jsonable = json::object! {
+                                "detail" => json::object! {
+                                    "status_code" => 409,
+                                    "message" => err.to_string()
+                                }
+                            };
+                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
+                        }
+                    }
+                },
+                UserIdentifier::Email(email) => {
+                    let sql = "UPDATE users SET $1 = $2 WHERE email = $3";
+                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(email).fetch_one(sql_pool).await {
+                        Ok(_) => return Ok(String::from("The user's password has been updated.")),
+                        Err(err) => {
+                            let jsonable = json::object! {
+                                "detail" => json::object! {
+                                    "status_code" => 409,
+                                    "message" => err.to_string()
+                                }
+                            };
+                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
+                        }
+                    }
+                },
+                UserIdentifier::PrimaryKey(pk) => {
+                    let sql = "UPDATE users SET $1 = $2 WHERE pk = $3";
+                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(pk).fetch_one(sql_pool).await {
+                        Ok(_) => return Ok(String::from("The user's password has been updated.")),
+                        Err(err) => {
+                            let jsonable = json::object! {
+                                "detail" => json::object! {
+                                    "status_code" => 409,
+                                    "message" => err.to_string()
+                                }
+                            };
+                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
+                        }
+                    }
+                }
+            };
+        }
     }
 
     pub async fn delete_user(
         &self,
         sql_pool: &Pool<Sqlite>,
-        primary_key: i32,
+        identifier: impl Into<UserIdentifier>
     ) -> Result<String, Box<dyn stdError>> {
-        let sql = "DELETE FROM users WHERE pk = $1";
+        
+        let identifier = identifier.into();
 
-        query(sql).bind(&primary_key).execute(sql_pool).await?;
+        let _ = match identifier {
+            UserIdentifier::Email(email) => {
+                let sql = "DELETE FROM users WHERE email = $1";
+                query(sql).bind(email).execute(sql_pool).await?
+            },
+            UserIdentifier::Username(username) => {
+                let sql = "DELETE FROM users WHERE username = $1";
+                query(sql).bind(username).execute(sql_pool).await?
+            },
+            UserIdentifier::PrimaryKey(pk) => {
+                let sql = "DELETE FROM users WHERE pk = $1";
+                query(sql).bind(pk).execute(sql_pool).await?
+            }
+        };
 
         return Ok(String::from(
             "User has been successfully removed from database.",
@@ -148,7 +198,7 @@ impl AuthHandler {
     }
 
     pub fn verify_password(&self, psw: &str, encoded_psw: &str) -> bool {
-        return Hasher::verify(psw, encoded_psw, "sha_256");
+        return Hasher::verify(psw, encoded_psw);
     }
 }
 
