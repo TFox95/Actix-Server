@@ -75,91 +75,58 @@ impl UserCRUD {
         &self,
         sql_pool: &Pool<Sqlite>,
         identifier: impl Into<UserIdentifier>,
-        parameter_to_update: String,
-        updated_value: String,
+        targetd_parameter: String,
+        mut updated_value: String,
     ) -> Result<String, Box<dyn stdError>> {
 
-        let updated_value = if parameter_to_update.to_lowercase() == String::from("password") {
-            AuthHandler.get_password_hash(&updated_value)
-        } else {
-            updated_value
-        };
-
         let identifier = identifier.into();
-        let user_pass = match &identifier {
+        let result = match &identifier {
             UserIdentifier::Username(username) => {
                 let sql = "SELECT $1 FROM users WHERE username = $2";
-                query(sql).bind(&parameter_to_update.to_lowercase()).bind(username).fetch_one(sql_pool).await?
+                query(sql).bind(&targetd_parameter.to_lowercase()).bind(username).fetch_optional(sql_pool).await?
             },
             UserIdentifier::Email(email) => {
                 let sql = "SELECT $1 FROM users WHERE email = $2";
-                query(sql).bind(&parameter_to_update.to_lowercase()).bind(email).fetch_one(sql_pool).await?
+                query(sql).bind(&targetd_parameter.to_lowercase()).bind(email).fetch_optional(sql_pool).await?
             },
             UserIdentifier::PrimaryKey(pk) => {
                 let sql = "SELECT $1 FROM users WHERE pk = $2";
-                query(sql).bind(&parameter_to_update.to_lowercase()).bind(pk).fetch_one(sql_pool).await?
+                query(sql).bind(&targetd_parameter.to_lowercase()).bind(pk).fetch_optional(sql_pool).await?
             }
         };
-        
-        let current_value: String = user_pass.get(parameter_to_update.clone().to_lowercase().as_str());
+
+        let user_result = result.as_ref().map(|row| -> UserBaseSchema {
+            UserBaseSchema::new(row.get("pk"), row.get("email"), row.get("username"), row.get("password"))
+        });
+
+        if targetd_parameter.to_lowercase() == String::from("password") {
+            updated_value = AuthHandler.get_password_hash(&updated_value)
+        };
+
+        let current_value: String = result.map(|row| -> String {row.get(targetd_parameter.as_str())}).unwrap().to_string();
         if updated_value == current_value {
             let jsonable = json::object! {
                 "detail" => json::object! {
                     "status_code" => 409,
-                    "message" => format!("Unable to update the {}. The value provided for the new {} does not meet the length, complexity, or history requirements of the domain", parameter_to_update, parameter_to_update)
+                    "message" => format!("Unable to update the {}. The value provided for the new {} does not meet the length, complexity, or history requirements of the domain", targetd_parameter, targetd_parameter)
                 }
             };
             return Err(Box::new(actix_web::error::ErrorBadRequest(jsonable.dump())))
-        } else {
+        };
                     
-            match identifier {
-                UserIdentifier::Username(username) => {
-                    let sql = "UPDATE users SET $1 = $2 WHERE username = $3";
-                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(&username).fetch_one(sql_pool).await {
-                       Ok(_) => return Ok(String::from("The user's password has been successfully updated.")),
-                       Err(err) => {
-                            let jsonable = json::object! {
-                                "detail" => json::object! {
-                                    "status_code" => 409,
-                                    "message" => err.to_string()
-                                }
-                            };
-                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
-                        }
+        let sql = "UPDATE users SET $1 = $2 WHERE pk = $3";
+        match query(sql).bind(targetd_parameter.to_lowercase()).bind(updated_value).bind(&user_result.unwrap().pk.to_string()).fetch_one(sql_pool).await {
+            Ok(_) => return Ok(String::from("The user's password has been updated.")),
+            Err(err) => {
+                let jsonable = json::object! {
+                    "detail" => json::object! {
+                        "status_code" => 409,
+                        "message" => err.to_string()
                     }
-                },
-                UserIdentifier::Email(email) => {
-                    let sql = "UPDATE users SET $1 = $2 WHERE email = $3";
-                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(email).fetch_one(sql_pool).await {
-                        Ok(_) => return Ok(String::from("The user's password has been updated.")),
-                        Err(err) => {
-                            let jsonable = json::object! {
-                                "detail" => json::object! {
-                                    "status_code" => 409,
-                                    "message" => err.to_string()
-                                }
-                            };
-                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
-                        }
-                    }
-                },
-                UserIdentifier::PrimaryKey(pk) => {
-                    let sql = "UPDATE users SET $1 = $2 WHERE pk = $3";
-                    match query(sql).bind(parameter_to_update.to_lowercase()).bind(updated_value).bind(pk).fetch_one(sql_pool).await {
-                        Ok(_) => return Ok(String::from("The user's password has been updated.")),
-                        Err(err) => {
-                            let jsonable = json::object! {
-                                "detail" => json::object! {
-                                    "status_code" => 409,
-                                    "message" => err.to_string()
-                                }
-                            };
-                            return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
-                        }
-                    }
-                }
-            };
-        }
+                };
+                return Err(Box::new(actix_web::error::ErrorInternalServerError(jsonable.dump())))
+            }
+        } 
     }
 
     pub async fn delete_user(
