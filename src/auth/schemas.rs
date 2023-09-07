@@ -3,8 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use sqlx::FromRow;
 
-use jsonwebtoken::{encode, EncodingKey, Header, decode, DecodingKey, Validation};
-
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserCreateSchema {
@@ -21,7 +19,7 @@ pub struct UserLoginSchema {
 
 #[derive(Debug, Deserialize, Serialize, FromRow)]
 pub struct UserBaseSchema {
-    pub pk: i32,
+    pub pk: i64,
     pub email: String,
     pub username: String,
     pub password: String,
@@ -52,7 +50,7 @@ pub struct RefreshTokenSchema {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserTokenSchema {
     pub username: String,
-    pub pk: i32
+    pub pk: i64
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -62,7 +60,7 @@ pub struct TokenEncoded {
 
 #[async_trait]
 pub trait UserTraits {
-    fn new(pk: i32, email: String, username: String, password: String) -> UserBaseSchema {
+    fn new(pk: i64, email: String, username: String, password: String) -> UserBaseSchema {
         return UserBaseSchema {
             pk,
             email,
@@ -73,3 +71,22 @@ pub trait UserTraits {
 }
 
 impl UserTraits for UserBaseSchema {}
+
+pub enum UserIdentifier {
+    Email(String),
+    Username(String),
+    PrimaryKey(i64)
+}
+
+impl <T:Into<String>> From<T> for UserIdentifier {
+    fn from(value: T) -> Self {
+        
+        let value = value.into(); 
+        match value {
+            value if value.contains("@") => UserIdentifier::Email(value),
+            pk if pk.parse::<i64>().is_ok() => UserIdentifier::PrimaryKey(pk.parse::<i64>().unwrap()),
+            value => UserIdentifier::Username(value)
+        }
+
+    }
+}
