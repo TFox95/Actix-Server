@@ -1,5 +1,5 @@
 use actix_web::{
-    cookie::time::Duration, cookie::Cookie, delete, get, http::StatusCode, post, web::scope,
+    cookie::time::Duration, cookie::Cookie, delete, get, post, patch, http::StatusCode, web::scope,
     web::Json as webJson, web::ServiceConfig, HttpRequest, HttpResponse as Response, Responder,
 };
 
@@ -9,9 +9,9 @@ use std::result::Result;
 use super::{
     crud::UserCRUD,
     middleware::{
-        check_auth_header,
+        check_cookies,
         check_currently_active,
-        check_auth_cookies, 
+        check_headers, 
         get_db_pool, 
         get_user
     },
@@ -65,7 +65,7 @@ async fn login(
         pk: grab_user.pk,
     };
     let refresh_token = RefreshTokenSchema::get_token_or_create(
-        user.username.clone(),
+        user.username.to_string(),
         get_db_pool(SQLITE_TUPLE).await?,
     )
     .await?;
@@ -97,13 +97,39 @@ async fn login(
     };
 }
 
+#[get("/logout")]
+async fn logout(req: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
+    let mut res = Response::Ok();
+
+    match check_cookies(req, "Authorization").await {
+        Ok(_) => {
+            let expired_cookie = Cookie::build("Authorization", "")
+            .secure(true)
+            .http_only(true)
+            .max_age(Duration::days(0))
+            .finish();
+            res.cookie(expired_cookie);
+            
+            let jsonable =json::object! {
+                "data" => json::object! {
+                    "message" => "The user has been successfully logged out."
+                }
+            };
+
+            return Ok(res.body(jsonable.dump()))
+        },
+        Err(err) => return Err(Box::new(err))
+    }
+}
+
 #[delete("/destroy_user")]
-async fn destroy_user(request: webJson<UserLoginSchema>) -> Result<impl Responder, Box<dyn Error>> {
-    let pool = get_db_pool(SQLITE_TUPLE).await?;
+async fn destroy_user(req: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
+    check_cookies(req.clone(), "Authorization").await?;
+    let token_schema = check_headers(req, "Authorization").await?;
     let user_pk = UserCRUD
-        .retrieve_user_by_username_or_email(&pool, request.username.to_string())
+        .retrieve_user(&get_db_pool(SQLITE_TUPLE).await?, token_schema.data.pk.to_string())
         .await?;
-    let user_operation = UserCRUD.delete_user(&pool, user_pk.pk).await;
+    let user_operation = UserCRUD.delete_user(&get_db_pool(SQLITE_TUPLE).await?, user_pk.pk.to_string()).await;
 
     match user_operation {
         Ok(res) => {
@@ -117,6 +143,7 @@ async fn destroy_user(request: webJson<UserLoginSchema>) -> Result<impl Responde
         Err(err) => {
             let jsonable: json::JsonValue = json::object! {
                 "detail" => json::object! {
+                    "status_code" => 500,
                     "message" => err.to_string()
                 }
             };
@@ -128,9 +155,9 @@ async fn destroy_user(request: webJson<UserLoginSchema>) -> Result<impl Responde
 
 #[get("/refresh")]
 async fn token_refresh(req: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
-    let refresh_struct = check_auth_cookies(req, "Authorization").await?;
+    let refresh_struct = check_cookies(req, "Authorization").await?;
 
-    let user = UserCRUD.retrieve_user_by_username_or_email(&get_db_pool(SQLITE_TUPLE).await?, refresh_struct.ref_usernames).await?;    
+    let user = UserCRUD.retrieve_user(&get_db_pool(SQLITE_TUPLE).await?, refresh_struct.ref_usernames).await?;    
     let user_token_scheme = UserTokenSchema { username:user.username, pk: user.pk };
     let new_access_token = AccessTokenSchema::generate_token(user_token_scheme).await?;
 
@@ -139,7 +166,6 @@ async fn token_refresh(req: HttpRequest) -> Result<impl Responder, Box<dyn Error
             "access_token" => new_access_token.token_key
         }
     };
-    
     return Ok(Response::Accepted().body(jsonable.dump()))
 
 }
@@ -148,19 +174,34 @@ async fn token_refresh(req: HttpRequest) -> Result<impl Responder, Box<dyn Error
 #[get("/get_user")]
 async fn retrieve_user(request: HttpRequest) -> Result<impl Responder, Box<dyn Error>> {
 
-    let handle_token = check_auth_header(request, "Authorization").await?;
-    let handle_user = UserCRUD.retrieve_user_by_username_or_email(&get_db_pool(SQLITE_TUPLE).await?, handle_token.data.username).await?;
+    let handle_token = check_headers(request, "Authorization").await?;
+    match UserCRUD.retrieve_user(&get_db_pool(SQLITE_TUPLE).await?, handle_token.data.pk.to_string()).await {
+        Ok(user) => {
+            let jsonable = json::object! {
+                "data" => json::object! {
+                    "pk" => user.pk,
+                    "username" => user.username,
+                    "email" => user.email
+                }
+            };
+            return Ok(Response::Ok().body(jsonable.dump()));
+        },
+        Err(err) => {
+            let err = if err.to_string().contains("no rows") {
+                String::from("Wasn't able to locate User")
+            } else {
+                err.to_string()
+            };
 
-    let jsonable = json::object! {
-        "data" => json::object! {
-            "pk" => handle_user.pk,
-            "username" => handle_user.username,
-            "email" => handle_user.email,
-            "password" => handle_user.password
+            let jsonable: json::JsonValue = json::object! {
+                "detail" => json::object! {
+                    "status_code" => 500,
+                    "message" => err
+                }
+            };
+            return Err(Box::new(actix_web::error::ErrorNotFound(jsonable.dump()))) 
         }
-    };
-
-    return Ok(Response::Ok().body(jsonable.dump()));
+    }
 }
 
 
@@ -171,6 +212,7 @@ pub fn config(cfg: &mut ServiceConfig) {
             .service(destroy_user)
             .service(login)
             .service(token_refresh)
-            .service(retrieve_user),
+            .service(retrieve_user)
+            .service(logout),
     );
 }
