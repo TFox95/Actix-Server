@@ -56,39 +56,15 @@ impl Hasher {
         }
     }
 
-    pub fn verify(key: &str, encoded_key: &str, algorithm: &str) -> bool {
-        let salt: String = var("HASH_SALT").unwrap();
-        let pepper: String = var("HASH_PEPPER").unwrap();
-
-        let salt_key_pepper: String = format!("{}{}{}", salt, key, pepper);
-
-        match algorithm.to_lowercase().as_str() {
-            "256" | "sha_256" => {
-                let mut hashing = Sha256::new();
-                hashing.update(salt_key_pepper.as_str());
-                let final_hash = format!("{:x}", hashing.finalize());
-
-                if final_hash != encoded_key {
-                    return false;
-                }
-
-                true
-            }
-            "512" | "sha_512" => {
-                let mut hashing = Sha512::new();
-                hashing.update(salt_key_pepper.as_str());
-                let final_hash = format!("{:x}", hashing.finalize());
-
-                if final_hash != encoded_key {
-                    return false;
-                }
-
-                return true;
-            }
-
-            _ => panic!(
-                "Incorrect Arguments passed to encode function. Check arguments and try again."
-            ),
+    pub fn verify(key: &str, encoded_key: &str) -> bool {
+        
+        if key == encoded_key {
+            return true
+        } else if key != encoded_key {
+            return false
+        } else {
+            panic!("Incorrect Arguments passed to encode function. Check arguments and try again.")
         }
+        
     }
 }
