@@ -13,7 +13,7 @@ use super::{
     schemas::TokenEncoded, 
     schemas::UserLoginSchema,
 };
-use crate::database::models::{
+use crate::scopes::database::models::{
     DatabaseTraits, 
     SqliteStruct
 };

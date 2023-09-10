@@ -4,8 +4,8 @@ use actix_web::web::{scope, ServiceConfig};
 use actix_web::{get, post, HttpResponse as Response, Responder};
 use sqlx::Row;
 
-use crate::database::models::DatabaseTraits;
-use crate::database::models::SqliteStruct;
+use crate::scopes::database::models::DatabaseTraits;
+use crate::scopes::database::models::SqliteStruct;
 
 use json;
 

@@ -6,8 +6,8 @@ use async_trait_fn::async_trait;
 use std::error::Error as stdError;
 use std::result::Result;
 
-use crate::database::models::DatabaseTraits;
-use crate::database::models::SqliteStruct;
+use crate::scopes::database::models::DatabaseTraits;
+use crate::scopes::database::models::SqliteStruct;
 
 #[async_trait]
 impl<'a> DatabaseTraits for SqliteStruct<'a> {

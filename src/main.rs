@@ -1,9 +1,8 @@
-mod auth;
-mod database;
+mod scopes;
 mod utils;
 
-use crate::auth::routes as a_routes;
-use crate::database::routes as d_routes;
+use crate::scopes::auth::routes as auth_scope;
+use crate::scopes::database::routes as db_scope;
 use crate::utils::config::get_server_time;
 
 use dotenv::dotenv;
@@ -41,8 +40,8 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .service(index)
-            .configure(d_routes::config)
-            .configure(a_routes::config)
+            .configure(db_scope::config)
+            .configure(auth_scope::config)
             .wrap(Logger::default())
     })
     .bind((server_address, server_port))?
