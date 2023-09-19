@@ -1,6 +1,6 @@
 {
   "builds": [
-    {"src": "src/main.rs", "use": "vercel-rust@4.0.2", "buildCommand": "cargo build --bin Actix-Server --quiet --release"}
+    {"src": "src/Actix-Server.rs", "use": "vercel-rust@4.0.2"}
   ],
   "routes": [
     {"src": "/(.*)", "dest": "./src/main.py"}
