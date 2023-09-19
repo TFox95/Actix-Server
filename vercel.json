@@ -1,6 +1,6 @@
 {
   "builds": [
-    {"src": "Actix-Server", "use": "vercel-rust@4.0.2"}
+    {"src": "./src", "use": "vercel-rust@4.0.2"}
   ],
   "routes": [
     {"src": "/(.*)", "dest": "./src/main.py"}
