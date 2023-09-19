@@ -1,7 +1,8 @@
 {
-  "functions": {
-    "src/main.rs": {
-      "runtime": "vercel-rust@4.0.2"
-    }
-  }
+  "builds": [
+    {"src": "./src/main.rs", "use": "vercel-rust@4.0.2"}
+  ],
+  "routes": [
+    {"src": "/(.*)", "dest": "./src/main.py"}
+  ]
 }
