@@ -4,5 +4,7 @@
   ],
   "routes": [
     {"src": "/(.*)", "dest": "./src/main.py"}
-  ]
+  ],
+  "buildCommand": "cargo build --bin Actix-Server --quiet --release"
+
 }
