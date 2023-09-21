@@ -1,12 +1,11 @@
 {
+  "postbuild": [
+    "cargo run"
+  ],
   "builds": [
     {
       "src": "./src/main.rs",
       "use": "vercel-rust@4.0.6"
-    },
-    {
-      "src": "./src/main.rs",
-      "use": "cargo run build"
     }
   ],
   "routes": [
