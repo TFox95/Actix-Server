@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "./src/main.rs",
+      "use": "vercel-rust@4.0.2 && cargo run build",
+      "postbuild": [
+        "cargo run"
+      ]
+    }
+  ],
+  "routes": [
+    {"src": "/(.*)", "dest": "./src/main.py"}
+  ]
+}
