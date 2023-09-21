@@ -1,14 +1,18 @@
 {
-  "postbuild": [
-    "cargo run"
-  ],
+  "version": 2,
   "builds": [
     {
-      "src": "./src/main.rs",
+      "src": "src/main.rs",
       "use": "vercel-rust@4.0.6"
     }
   ],
   "routes": [
-    {"src": "/(.*)", "dest": "./src/main.py"}
-  ]
+    { "src": "/api/(.*)", "dest": "src/main.rs" },
+    { "src": "/(.*)", "dest": "src/main.rs" }
+  ],
+  "env": {
+    "RUST_BACKTRACE": "1",
+    "RUST_LOG": "info"
+  }
 }
+
