@@ -2,12 +2,8 @@
   "builds": [
     {
       "src": "./src/main.rs",
-      "use": "vercel-rust@4.0.2",
-    },
-    {
-      "src": "./src/",
-      "use": "cargo run build"
-    }
+      "use": "vercel-rust@4.0.2; cargo run build;",
+    } 
   ],
   "routes": [
     {"src": "/(.*)", "dest": "./src/main.py"}
